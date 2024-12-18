@@ -26,8 +26,6 @@ import software.amazon.awssdk.services.opensearchserverless.model.CollectionStat
  */
 public class SynapseHelpCollectionIndexCreation implements WaitConditionHandler {
 	
-	private static final String IDX_NAME = "vector-idx";
-	
 	private Logger logger;
 	
 	private RepoConfiguration config;
@@ -52,7 +50,8 @@ public class SynapseHelpCollectionIndexCreation implements WaitConditionHandler 
 	
 	@Override
 	public Optional<String> handle(StackEvent stackEvent) {
-		String collectionName = config.getProperty(Constants.PROPERTY_KEY_STACK) + "-" + config.getProperty(Constants.PROPERTY_KEY_INSTANCE) + "-synhelp";
+		String stack = config.getProperty(Constants.PROPERTY_KEY_STACK);
+		String collectionName = stack + "-synhelp";
 		
 		CollectionDetail collection = ossManagementClient.batchGetCollection(req -> req
 			.names(collectionName)
@@ -63,18 +62,22 @@ public class SynapseHelpCollectionIndexCreation implements WaitConditionHandler 
 			return Optional.empty();
 		}
 		
+		String instance = config.getProperty(Constants.PROPERTY_KEY_INSTANCE);
+		
+		String indexName = stack + "-" + instance + "-vector-idx";
+		
 		OpenSearchIndicesClient client = openSearchClientFactory.getIndicesClient(collection.collectionEndpoint());
 		
 		try {	
-			if (client.exists(req -> req.index(IDX_NAME)).value()) {
-				logger.warn("Index {} already exists.", IDX_NAME);
+			if (client.exists(req -> req.index(indexName)).value()) {
+				logger.warn("Index {} already exists.", indexName);
 				return Optional.of("index-already-exists");
 			}
 			
-			logger.info("Index {} does not exist, creating...", IDX_NAME);
+			logger.info("Index {} does not exist, creating...", indexName);
 			
 			client.create(req -> req
-				.index(IDX_NAME)
+				.index(indexName)
 				.settings(settings -> settings.knn(true).knnAlgoParamEfSearch(512))
 				.mappings(mappings -> mappings
 					.properties("text_vector", p -> p
@@ -92,7 +95,7 @@ public class SynapseHelpCollectionIndexCreation implements WaitConditionHandler 
 				)
 			);
 			
-			logger.info("Index {} creation completed.", IDX_NAME);
+			logger.info("Index {} creation completed.", indexName);
 			
 			return Optional.of("index-creation-complete");
 			

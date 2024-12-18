@@ -77,6 +77,106 @@
         "LogGroupName": "aws-waf-logs-prod",
         "RetentionInDays": 30
       }
+    },
+    "SynapseHelpCollectionDeployerDataAccessPolicy": {
+      "Type": "AWS::OpenSearchServerless::AccessPolicy",
+      "Properties": {
+        "Name": "prod-synhelp-deployer",
+        "Type": "data",
+        "Description": "Access policy for the deployer to create indices for the synapse help collection",
+        "Policy": {"Fn::Sub": [
+          "[{\"Rules\":[{\"ResourceType\":\"index\",\"Resource\":[\"index/prod-synhelp/*\"],\"Permission\":[\"aoss:CreateIndex\",\"aoss:DescribeIndex\"]}],\"Principal\":[\"${deployerRoleArn}\"]}]",
+          {"deployerRoleArn": "currentIdentityArn"}
+        ]}
+      }
+    },
+    "SynapseHelpCollectionEncryptionPolicy": {
+      "Type": "AWS::OpenSearchServerless::SecurityPolicy",
+      "Properties": {
+        "Name": "prod-synhelp",
+        "Type": "encryption",
+        "Description": "Encryption policy for the synapse help collection",
+        "Policy": "{\"Rules\":[{\"ResourceType\":\"collection\",\"Resource\":[\"collection/prod-synhelp\"]}],\"AWSOwnedKey\":true}"
+      }
+    },
+    "SynapseHelpCollectionNetworkPolicy": {
+      "Type": "AWS::OpenSearchServerless::SecurityPolicy",
+      "Properties": {
+        "Name": "prod-synhelp",
+        "Type": "network",
+        "Description": "Encryption policy for the synapse help collection",
+        "Policy": {"Fn::Sub": [
+          "[{\"Rules\":[{\"ResourceType\":\"collection\",\"Resource\":[\"collection/prod-synhelp\"]}],\"AllowFromPublic\":false,\"SourceServices\":[\"bedrock.amazonaws.com\"],\"SourceVPCEs\":[\"${vpcEndpointId}\"]}]",
+          {"vpcEndpointId": {"Fn::ImportValue": "us-east-1-synapse-prod-vpc-2-open-search-vpce"}}
+        ]}
+      }
+    },
+    "SynapseHelpCollection": {
+      "Type": "AWS::OpenSearchServerless::Collection",
+      "Properties": {
+        "Name": "prod-synhelp",
+        "Type": "VECTORSEARCH",
+        "Description": "Vector store collection for synapse help documentation",
+        "StandbyReplicas": "DISABLED"
+      },
+      "DependsOn": [
+        "SynapseHelpCollectionEncryptionPolicy",
+        "SynapseHelpCollectionNetworkPolicy",
+        "SynapseHelpCollectionDeployerDataAccessPolicy"
+      ]
+    },
+    "SynapseHelpCollectionBedrockExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": {"Service": "bedrock.amazonaws.com"},
+            "Action": "sts:AssumeRole",
+            "Condition": {
+              "StringEquals": {"aws:SourceAccount": {"Ref": "AWS::AccountId"}},
+              "ArnLike": {"aws:SourceArn": {"Fn::Sub": "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/*"}}
+            }
+          }]
+        },
+        "Policies": [{
+          "PolicyName": "SynapseHelpCollectionBedrockExecutionRolePolicy",
+          "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": "bedrock:InvokeModel",
+                "Resource": [{"Fn::Sub": "arn:aws:bedrock:${AWS::Region}::foundation-model/*"}]
+              },
+              {
+                "Effect": "Allow",
+                "Action": "aoss:APIAccessAll",
+                "Resource": [{"Fn::GetAtt": [
+                  "SynapseHelpCollection",
+                  "Arn"
+                ]}]
+              }
+            ]
+          }
+        }]
+      }
+    },
+    "SynapseHelpCollectionBedrockBaseDataAccessPolicy": {
+      "Type": "AWS::OpenSearchServerless::AccessPolicy",
+      "Properties": {
+        "Name": "prod-synhelp-bedrock",
+        "Type": "data",
+        "Description": "Access policy for knowledge bases to sync and query the synapse help collection indexes",
+        "Policy": {"Fn::Sub": [
+          "[{\"Rules\":[{\"ResourceType\":\"index\",\"Resource\":[\"index/prod-synhelp/*\"],\"Permission\":[\"aoss:CreateIndex\",\"aoss:UpdateIndex\",\"aoss:DescribeIndex\",\"aoss:ReadDocument\",\"aoss:WriteDocument\"]},{\"ResourceType\":\"collection\",\"Resource\":[\"collection/prod-synhelp\"],\"Permission\":[\"aoss:DescribeCollectionItems\",\"aoss:CreateCollectionItems\",\"aoss:UpdateCollectionItems\"]}],\"Principal\":[\"${executionRoleArn}\"]}]",
+          {"executionRoleArn": {"Fn::GetAtt": [
+            "SynapseHelpCollectionBedrockExecutionRole",
+            "Arn"
+          ]}}
+        ]}
+      }
     }
   },
   "Outputs": {
@@ -128,6 +228,36 @@
           {"Ref": "AWS::Region"},
           {"Ref": "AWS::StackName"},
           "WebAclCloudWatchLogGroupArn"
+        ]
+      ]}}
+    },
+    "SynapseHelpCollectionArn": {
+      "Description": "Arn for the synapse help open search collection",
+      "Value": {"Fn::GetAtt": [
+        "SynapseHelpCollection",
+        "Arn"
+      ]},
+      "Export": {"Name": {"Fn::Join": [
+        "-",
+        [
+          {"Ref": "AWS::Region"},
+          {"Ref": "AWS::StackName"},
+          "SynapseHelpCollectionArn"
+        ]
+      ]}}
+    },
+    "SynapseHelpCollectionBedrockExecutionRoleArn": {
+      "Description": "Arn for a role that provides bedrock access to synapse help collection",
+      "Value": {"Fn::GetAtt": [
+        "SynapseHelpCollectionBedrockExecutionRole",
+        "Arn"
+      ]},
+      "Export": {"Name": {"Fn::Join": [
+        "-",
+        [
+          {"Ref": "AWS::Region"},
+          {"Ref": "AWS::StackName"},
+          "SynapseHelpCollectionBedrockExecutionRoleArn"
         ]
       ]}}
     }

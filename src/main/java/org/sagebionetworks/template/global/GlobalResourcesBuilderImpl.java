@@ -1,5 +1,7 @@
 package org.sagebionetworks.template.global;
 
+import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
+import com.amazonaws.services.securitytoken.model.GetCallerIdentityRequest;
 import com.google.inject.Inject;
 import org.apache.logging.log4j.Logger;
 import org.apache.velocity.Template;
@@ -19,23 +21,26 @@ import java.io.StringWriter;
 
 import static org.sagebionetworks.template.Constants.DELETION_POLICY;
 import static org.sagebionetworks.template.Constants.GLOBAL_RESOURCES_STACK_NAME_FORMAT;
+import static org.sagebionetworks.template.Constants.IDENTITY_ARN;
 import static org.sagebionetworks.template.Constants.JSON_INDENT;
 import static org.sagebionetworks.template.Constants.PROPERTY_KEY_STACK;
 import static org.sagebionetworks.template.Constants.SES_SYNAPSE_DOMAIN;
 import static org.sagebionetworks.template.Constants.STACK;
 import static org.sagebionetworks.template.Constants.TEMPLATE_GLOBAL_RESOURCES;
+import static org.sagebionetworks.template.Constants.VPC_EXPORT_PREFIX;
 import static org.sagebionetworks.template.Constants.CAPABILITY_NAMED_IAM;
 import static org.sagebionetworks.template.Constants.GLOBAL_CFSTACK_OUTPUT_KEY_SES_BOUNCE_TOPIC;
 import static org.sagebionetworks.template.Constants.GLOBAL_CFSTACK_OUTPUT_KEY_SES_COMPLAINT_TOPIC;
 
 public class GlobalResourcesBuilderImpl implements GlobalResourcesBuilder {
 
-    CloudFormationClient cloudFormationClient;
-    VelocityEngine velocityEngine;
-    Configuration config;
-    Logger logger;
-    StackTagsProvider stackTagsProvider;
-    SesClient sesClient;
+    private CloudFormationClient cloudFormationClient;
+    private VelocityEngine velocityEngine;
+    private Configuration config;
+    private Logger logger;
+    private StackTagsProvider stackTagsProvider;
+    private SesClient sesClient;
+    private AWSSecurityTokenService stsClient;
 
     @Inject
     public GlobalResourcesBuilderImpl(CloudFormationClient cloudFormationClient,
@@ -43,13 +48,15 @@ public class GlobalResourcesBuilderImpl implements GlobalResourcesBuilder {
                                       Configuration config,
                                       LoggerFactory loggerFactory,
                                       StackTagsProvider stackTagsProvider,
-                                      SesClient sesClient) {
+                                      SesClient sesClient,
+                                      AWSSecurityTokenService stsClient) {
         this.cloudFormationClient = cloudFormationClient;
         this.velocityEngine = velocityEngine;
         this.config = config;
         this.logger = loggerFactory.getLogger(GlobalResourcesBuilderImpl.class);
         this.stackTagsProvider = stackTagsProvider;
         this.sesClient = sesClient;
+        this.stsClient = stsClient;
     }
 
     @Override
@@ -82,9 +89,11 @@ public class GlobalResourcesBuilderImpl implements GlobalResourcesBuilder {
 
     public VelocityContext createContext() {
         VelocityContext context = new VelocityContext();
-        context.put(STACK, config.getProperty(PROPERTY_KEY_STACK));
-        context.put(DELETION_POLICY,
-                Constants.isProd(config.getProperty(PROPERTY_KEY_STACK)) ? DeletionPolicy.Retain.name() : DeletionPolicy.Delete.name());
+        String stack = config.getProperty(PROPERTY_KEY_STACK);
+        context.put(STACK, stack);
+        context.put(DELETION_POLICY, Constants.isProd(config.getProperty(PROPERTY_KEY_STACK)) ? DeletionPolicy.Retain.name() : DeletionPolicy.Delete.name());
+        context.put(IDENTITY_ARN, stsClient.getCallerIdentity(new GetCallerIdentityRequest()).getArn());
+        context.put(VPC_EXPORT_PREFIX, Constants.createVpcExportPrefix(stack));
         return context;
     }
 

@@ -133,7 +133,6 @@ public class RepositoryTemplateBuilderImpl implements RepositoryTemplateBuilder 
 	private final CloudwatchLogsVelocityContextProvider cwlContextProvider;
 	private final AWSElasticBeanstalk beanstalkClient;
 	private final TimeToLive timeToLive;
-	private final AWSSecurityTokenService stsClient;
 	private final Set<WaitConditionHandler> waitConditionHandlers;
 
 	@Inject
@@ -143,7 +142,7 @@ public class RepositoryTemplateBuilderImpl implements RepositoryTemplateBuilder 
 										 ElasticBeanstalkSolutionStackNameProvider elasticBeanstalkDefaultAMIEncrypter,
 										 StackTagsProvider stackTagsProvider, CloudwatchLogsVelocityContextProvider cloudwatchLogsVelocityContextProvider,
 										 Ec2Client ec2Client, AWSElasticBeanstalk beanstalkClient, TimeToLive ttl, 
-										 AWSSecurityTokenService stsClient, Set<WaitConditionHandler> waitConditionHandlers) {
+										 Set<WaitConditionHandler> waitConditionHandlers) {
 		super();
 		this.cloudFormationClient = cloudFormationClient;
 		this.ec2Client = ec2Client;
@@ -158,7 +157,6 @@ public class RepositoryTemplateBuilderImpl implements RepositoryTemplateBuilder 
 		this.cwlContextProvider = cloudwatchLogsVelocityContextProvider;
 		this.beanstalkClient = beanstalkClient;
 		this.timeToLive = ttl;
-		this.stsClient = stsClient;
 		this.waitConditionHandlers = waitConditionHandlers;
 	}
 
@@ -341,8 +339,6 @@ public class RepositoryTemplateBuilderImpl implements RepositoryTemplateBuilder 
 		for(VelocityContextProvider provider : contextProviders){
 			provider.addToContext(context);
 		}
-		
-		context.put(IDENTITY_ARN, stsClient.getCallerIdentity(new GetCallerIdentityRequest()).getArn());
 		
 		RegularExpressions.bindRegexToContext(context);
 

@@ -107,7 +107,7 @@ public class SynapseHelpCollectionIndexCreationTest {
 		when(mockOpenSearchIndicesClient.exists(existRequestCaptor.capture())).thenReturn(new BooleanResponse(false));
 		when(mockOpenSearchIndicesClient.create(createRequestCaptor.capture())).thenReturn(
 			CreateIndexResponse.of(resp -> resp
-				.index("vector-idx")
+				.index("dev-101-vector-idx")
 				.acknowledged(true)
 				.shardsAcknowledged(true)
 			)
@@ -117,17 +117,17 @@ public class SynapseHelpCollectionIndexCreationTest {
 		assertEquals(Optional.of("index-creation-complete"), handler.handle(mockStackEvent));
 		
 		assertEquals(
-			BatchGetCollectionRequest.builder().names("dev-101-synhelp").build(), 
+			BatchGetCollectionRequest.builder().names("dev-synhelp").build(), 
 			BatchGetCollectionRequest.builder().applyMutation(getCollectionRequestCaptor.getValue()).build()
 		);
 		
 		ExistsRequest existRequest = existRequestCaptor.getValue();
 		
-		assertEquals(List.of("vector-idx"), existRequest.index());
+		assertEquals(List.of("dev-101-vector-idx"), existRequest.index());
 		
 		CreateIndexRequest createRequest = createRequestCaptor.getValue();
 		
-		assertEquals("vector-idx", createRequest.index());
+		assertEquals("dev-101-vector-idx", createRequest.index());
 		assertTrue(createRequest.settings().knn());
 		assertEquals(512, createRequest.settings().knnAlgoParamEfSearch());
 		
@@ -146,7 +146,6 @@ public class SynapseHelpCollectionIndexCreationTest {
 	public void testHandleWithInactiveCollection() throws IOException, InterruptedException {
 		
 		when(mockConfig.getProperty(Constants.PROPERTY_KEY_STACK)).thenReturn("dev");
-		when(mockConfig.getProperty(Constants.PROPERTY_KEY_INSTANCE)).thenReturn("101");
 		
 		when(mockOssManagementClient.batchGetCollection(getCollectionRequestCaptor.capture())).thenReturn(BatchGetCollectionResponse.builder()
 			.collectionDetails(CollectionDetail.builder().status(CollectionStatus.CREATING).collectionEndpoint(COLLECTION_ENDPOINT).build()).build()
@@ -154,6 +153,11 @@ public class SynapseHelpCollectionIndexCreationTest {
 				
 		// Call under test
 		assertEquals(Optional.empty(), handler.handle(mockStackEvent));
+		
+		assertEquals(
+			BatchGetCollectionRequest.builder().names("dev-synhelp").build(), 
+			BatchGetCollectionRequest.builder().applyMutation(getCollectionRequestCaptor.getValue()).build()
+		);
 		
 		verifyNoMoreInteractions(mockOpenSearchIndicesClient);
 		
@@ -163,7 +167,6 @@ public class SynapseHelpCollectionIndexCreationTest {
 	public void testHandleWithCollectionNotFound() throws IOException, InterruptedException {
 		
 		when(mockConfig.getProperty(Constants.PROPERTY_KEY_STACK)).thenReturn("dev");
-		when(mockConfig.getProperty(Constants.PROPERTY_KEY_INSTANCE)).thenReturn("101");
 		
 		when(mockOssManagementClient.batchGetCollection(getCollectionRequestCaptor.capture())).thenReturn(BatchGetCollectionResponse.builder()
 			.collectionDetails(Collections.emptyList()).build()
@@ -173,7 +176,12 @@ public class SynapseHelpCollectionIndexCreationTest {
 			// Call under test
 			handler.handle(mockStackEvent);
 		});
-				
+			
+		assertEquals(
+			BatchGetCollectionRequest.builder().names("dev-synhelp").build(), 
+			BatchGetCollectionRequest.builder().applyMutation(getCollectionRequestCaptor.getValue()).build()
+		);
+		
 		verifyNoMoreInteractions(mockOpenSearchIndicesClient);
 	
 	}
@@ -196,13 +204,13 @@ public class SynapseHelpCollectionIndexCreationTest {
 		assertEquals(Optional.of("index-already-exists"), handler.handle(mockStackEvent));
 		
 		assertEquals(
-			BatchGetCollectionRequest.builder().names("dev-101-synhelp").build(), 
+			BatchGetCollectionRequest.builder().names("dev-synhelp").build(), 
 			BatchGetCollectionRequest.builder().applyMutation(getCollectionRequestCaptor.getValue()).build()
 		);
 		
 		ExistsRequest existRequest = existRequestCaptor.getValue();
 		
-		assertEquals(List.of("vector-idx"), existRequest.index());
+		assertEquals(List.of("dev-101-vector-idx"), existRequest.index());
 		
 		verifyNoMoreInteractions(mockOpenSearchIndicesClient);
 	
@@ -232,13 +240,13 @@ public class SynapseHelpCollectionIndexCreationTest {
 		assertEquals(ex, result.getCause());
 		
 		assertEquals(
-			BatchGetCollectionRequest.builder().names("dev-101-synhelp").build(), 
+			BatchGetCollectionRequest.builder().names("dev-synhelp").build(), 
 			BatchGetCollectionRequest.builder().applyMutation(getCollectionRequestCaptor.getValue()).build()
 		);
 		
 		ExistsRequest existRequest = existRequestCaptor.getValue();
 		
-		assertEquals(List.of("vector-idx"), existRequest.index());
+		assertEquals(List.of("dev-101-vector-idx"), existRequest.index());
 		
 		verifyNoMoreInteractions(mockOpenSearchIndicesClient);
 	

@@ -24,7 +24,6 @@ import static org.sagebionetworks.template.Constants.DELETION_POLICY;
 import static org.sagebionetworks.template.Constants.EC2_INSTANCE_MEMORY;
 import static org.sagebionetworks.template.Constants.EC2_INSTANCE_TYPE;
 import static org.sagebionetworks.template.Constants.ENVIRONMENT;
-import static org.sagebionetworks.template.Constants.IDENTITY_ARN;
 import static org.sagebionetworks.template.Constants.INSTANCE;
 import static org.sagebionetworks.template.Constants.NOSNAPSHOT;
 import static org.sagebionetworks.template.Constants.OUTPUT_NAME_SUFFIX_REPOSITORY_DB_ENDPOINT;
@@ -125,8 +124,6 @@ import com.amazonaws.services.elasticbeanstalk.model.ListPlatformVersionsRequest
 import com.amazonaws.services.elasticbeanstalk.model.ListPlatformVersionsResult;
 import com.amazonaws.services.elasticbeanstalk.model.PlatformFilter;
 import com.amazonaws.services.elasticbeanstalk.model.PlatformSummary;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
-import com.amazonaws.services.securitytoken.model.GetCallerIdentityResult;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -161,8 +158,6 @@ public class RepositoryTemplateBuilderImplTest {
 	private CloudwatchLogsVelocityContextProvider mockCwlContextProvider;
 	@Mock
 	private TimeToLive mockTimeToLive;
-	@Mock
-	private AWSSecurityTokenService mockStsClient;
 	@Mock
 	private WaitConditionHandler mockWaitConditionHandler;
 	@Captor
@@ -200,7 +195,7 @@ public class RepositoryTemplateBuilderImplTest {
 		builder = new RepositoryTemplateBuilderImpl(mockCloudFormationClient, velocityEngine, config, mockLoggerFactory,
 				mockArtifactCopy, mockSecretBuilder, Sets.newHashSet(mockContextProvider1, mockContextProvider2, new BedrockAgentContextProvider(config)),
 				mockElasticBeanstalkSolutionStackNameProvider, mockStackTagsProvider, mockCwlContextProvider,
-				mockEc2Client, mockBeanstalkClient, mockTimeToLive, mockStsClient, Set.of(mockWaitConditionHandler));
+				mockEc2Client, mockBeanstalkClient, mockTimeToLive, Set.of(mockWaitConditionHandler));
 		
 		builderSpy = Mockito.spy(builder);
 
@@ -231,7 +226,6 @@ public class RepositoryTemplateBuilderImplTest {
 	}
 
 	private void configureStack(String inputStack) throws InterruptedException {
-		when(mockStsClient.getCallerIdentity(any())).thenReturn(new GetCallerIdentityResult().withArn("currentIdentityArn"));
 		stack = inputStack;
 		
 		when(config.getProperty(PROPERTY_KEY_STACK)).thenReturn(stack);
@@ -376,8 +370,6 @@ public class RepositoryTemplateBuilderImplTest {
 		assertEquals(15000, tDbProps.getInt("StorageThroughput"));
 		
 		assertFalse(resources.has("WebhookTestApi"));
-		assertTrue(resources.has("SynapseHelpCollection"));
-		assertTrue(resources.has("SynapseHelpKnowledgeBaseExecutionRole"));
 		assertTrue(resources.has("SynapseHelpKnowledgeBase"));
 		assertTrue(resources.has("bedrockAgentRole"));
 		assertTrue(resources.has("bedrockAgent"));
@@ -624,8 +616,6 @@ public class RepositoryTemplateBuilderImplTest {
 		assertEquals(15000, tDbProps.getInt("StorageThroughput"));
 
 		assertTrue(resources.has("WebhookTestApi"));
-		assertTrue(resources.has("SynapseHelpCollection"));
-		assertTrue(resources.has("SynapseHelpKnowledgeBaseExecutionRole"));
 		assertTrue(resources.has("SynapseHelpKnowledgeBase"));
 		assertTrue(resources.has("bedrockAgentRole"));
 		assertTrue(resources.has("bedrockAgent"));
@@ -933,7 +923,6 @@ public class RepositoryTemplateBuilderImplTest {
 		when(config.getProperty(PROPERTY_KEY_RDS_REPO_SNAPSHOT_IDENTIFIER)).thenReturn(NOSNAPSHOT);
 		String[] noSnapshots = new String[] { NOSNAPSHOT };
 		when(config.getComaSeparatedProperty(PROPERTY_KEY_RDS_TABLES_SNAPSHOT_IDENTIFIERS)).thenReturn(noSnapshots);
-		when(mockStsClient.getCallerIdentity(any())).thenReturn(new GetCallerIdentityResult().withArn("currentIdentityArn"));
 		// call under test
 		VelocityContext context = builder.createSharedContext();
 
@@ -1016,7 +1005,6 @@ public class RepositoryTemplateBuilderImplTest {
 		when(config.getProperty(PROPERTY_KEY_RDS_REPO_SNAPSHOT_IDENTIFIER)).thenReturn(NOSNAPSHOT);
 		String[] noSnapshots = new String[] { NOSNAPSHOT };
 		when(config.getComaSeparatedProperty(PROPERTY_KEY_RDS_TABLES_SNAPSHOT_IDENTIFIERS)).thenReturn(noSnapshots);
-		when(mockStsClient.getCallerIdentity(any())).thenReturn(new GetCallerIdentityResult().withArn("currentIdentityArn"));
 		
 		// call under test
 		VelocityContext context = builder.createSharedContext();
@@ -1030,7 +1018,6 @@ public class RepositoryTemplateBuilderImplTest {
 		
 		assertEquals("Block:{}", context.get(ADMIN_RULE_ACTION));
 		assertEquals("Retain", context.get(DELETION_POLICY));
-		assertEquals("currentIdentityArn", context.get(IDENTITY_ARN));
 	}
 
 

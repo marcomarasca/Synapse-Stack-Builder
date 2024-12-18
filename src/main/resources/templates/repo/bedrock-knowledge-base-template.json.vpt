@@ -1,133 +1,6 @@
 	,
-	"SynapseHelpKnowledgeBaseExecutionRole": {
-		"Type": "AWS::IAM::Role",
-		"Properties": {
-			"AssumeRolePolicyDocument": {
-				"Version": "2012-10-17",
-				"Statement": [
-					{
-						"Effect": "Allow",
-						"Principal": {
-							"Service": "bedrock.amazonaws.com"
-						},
-						"Action": "sts:AssumeRole",
-						"Condition": {
-							"StringEquals": {
-								"aws:SourceAccount": {
-									"Ref": "AWS::AccountId"
-								}
-							},
-							"ArnLike": {
-								"aws:SourceArn": {
-									"Fn::Sub": "arn:aws:bedrock:#[[${AWS::Region}:${AWS::AccountId}]]#:knowledge-base/*"
-								}
-							}
-						}
-					}
-				]
-			}			
-		}
-	},
-	"SynapseHelpCollectionDeployerDataAccessPolicy": {
-		"Type":"AWS::OpenSearchServerless::AccessPolicy",
-		"Properties": {
-            "Name":"${stack}-${instance}-synhelp-deployer",
-            "Type":"data",
-            "Description":"Access policy for the deployer to create the index for the synapse help collection",
-            "Policy": {
-               "Fn::Sub": ["[{\"Rules\":[{\"ResourceType\":\"index\",\"Resource\":[\"index/${stack}-${instance}-synhelp/*\"],\"Permission\":[\"aoss:CreateIndex\",\"aoss:DescribeIndex\"]}],\"Principal\":[\"#[[${deployerRoleArn}]]#\"]}]",
-                	{
-                		"deployerRoleArn" : "${identityArn}"
-					}
-                ]
-            }
-		}
- 	},
- 	"SynapseHelpCollectionKnowledgeBaseDataAccessPolicy": {
-		"Type":"AWS::OpenSearchServerless::AccessPolicy",
-		"Properties": {
-            "Name":"${stack}-${instance}-synhelp-bedrock",
-            "Type":"data",
-            "Description":"Access policy for the knowledge base to sync and query the synapse help collection",
-            "Policy": {
-               "Fn::Sub": ["[{\"Rules\":[{\"ResourceType\":\"index\",\"Resource\":[\"index/${stack}-${instance}-synhelp/*\"],\"Permission\":[\"aoss:CreateIndex\",\"aoss:UpdateIndex\",\"aoss:DescribeIndex\",\"aoss:ReadDocument\",\"aoss:WriteDocument\"]},{\"ResourceType\":\"collection\",\"Resource\":[\"collection/${stack}-${instance}-synhelp\"],\"Permission\":[\"aoss:DescribeCollectionItems\",\"aoss:CreateCollectionItems\",\"aoss:UpdateCollectionItems\"]}],\"Principal\":[\"#[[${executionRoleArn}]]#\"]}]",
-                	{
-                		"executionRoleArn": { "Fn::GetAtt": ["SynapseHelpKnowledgeBaseExecutionRole", "Arn"] }
-					}
-                ]
-            }
-		}
- 	},
- 	"SynapseHelpCollectionEncryptionPolicy": {
-        "Type":"AWS::OpenSearchServerless::SecurityPolicy",
-        "Properties": {
-            "Name":"${stack}-${instance}-synhelp",
-            "Type":"encryption",
-            "Description":"Encryption policy for the synapse help collection",
-            "Policy":"{\"Rules\":[{\"ResourceType\":\"collection\",\"Resource\":[\"collection/${stack}-${instance}-synhelp\"]}],\"AWSOwnedKey\":true}"
-        }
-  	},
-  	"SynapseHelpCollectionNetworkPolicy": {
-     	"Type":"AWS::OpenSearchServerless::SecurityPolicy",
-	        "Properties": {
-	            "Name":"${stack}-${instance}-synhelp",
-	            "Type":"network",
-	            "Description":"Encryption policy for the synapse help collection",
-	            "Policy": {
-	            	"Fn::Sub": [
-	            		"[{\"Rules\":[{\"ResourceType\":\"collection\",\"Resource\":[\"collection/${stack}-${instance}-synhelp\"]}],\"AllowFromPublic\":false,\"SourceServices\":[\"bedrock.amazonaws.com\"],\"SourceVPCEs\":[\"#[[${vpcEndpointId}]]#\"]}]",
-	            		{
-	            			"vpcEndpointId": { "Fn::ImportValue": "${vpcExportPrefix}-open-search-vpce" }
-	            		}
-	            	]
-	            }
-	        }
-	},
-	"SynapseHelpCollection": {
-	    "Type":"AWS::OpenSearchServerless::Collection",
-	    "Properties": {
-	        "Name":"${stack}-${instance}-synhelp",
-	        "Type":"VECTORSEARCH",
-	        "Description":"Vector store collection for synapse help documentation",
-	        "StandbyReplicas": "DISABLED"
-	     },
-	     "DependsOn": ["SynapseHelpCollectionEncryptionPolicy", "SynapseHelpCollectionNetworkPolicy", "SynapseHelpCollectionDeployerDataAccessPolicy", "SynapseHelpCollectionKnowledgeBaseDataAccessPolicy"]
-	},
-	"SynapseHelpKnoweldgeBaseExecutionRolePolicy": {
-		"Type":"AWS::IAM::RolePolicy",
-		"Properties": {
-			"PolicyName": "SynapseHelpKnoweldgeBaseExecutionRolePolicy",
-			"PolicyDocument": {
-				"Version": "2012-10-17",
-				"Statement": [
-					{
-						"Effect": "Allow",
-						"Action": "bedrock:InvokeModel",
-						"Resource": [
-							{
-								"Fn::Sub": "arn:aws:bedrock:#[[${AWS::Region}]]#::foundation-model/*"
-							}
-						]
-					},
-					{
-						"Effect": "Allow",
-						"Action": "aoss:APIAccessAll",
-						"Resource": [
-							{ 
-								"Fn::GetAtt" : ["SynapseHelpCollection", "Arn"] 
-							}
-						]
-					}
-				]
-			},
-			"RoleName": {
-				"Ref": "SynapseHelpKnowledgeBaseExecutionRole"
-			}
-		}
-	},
 	"SynapseHelpCollectionCreateIndexWaitCondition": {
 		"Type": "AWS::CloudFormation::WaitCondition",
-		"DependsOn": [ "SynapseHelpCollection" ],
 		"CreationPolicy" : {
 	        "ResourceSignal" : {
 	            "Timeout" : "PT3M",
@@ -137,11 +10,13 @@
 	},
  	"SynapseHelpKnowledgeBase": {
  		"Type": "AWS::Bedrock::KnowledgeBase",
- 		"DependsOn": [ "SynapseHelpCollectionCreateIndexWaitCondition", "SynapseHelpKnoweldgeBaseExecutionRolePolicy" ],
+ 		"DependsOn": [ "SynapseHelpCollectionCreateIndexWaitCondition" ],
  		"Properties": {
  			"Name": "${stack}-${instance}-synhelp-knowledge-base",
- 			"Description": "Knowledge base for the synpase help documentation",
- 			"RoleArn": { "Fn::GetAtt" : ["SynapseHelpKnowledgeBaseExecutionRole", "Arn"] },
+ 			"Description": "Knowledge base for the synapse help documentation",
+ 			"RoleArn": { 
+				"Fn::ImportValue": "${globalResourcesExportPrefix}-SynapseHelpCollectionBedrockExecutionRoleArn"
+			},
  			"KnowledgeBaseConfiguration": {
  				"Type": "VECTOR",
  				"VectorKnowledgeBaseConfiguration": {
@@ -151,8 +26,10 @@
  			"StorageConfiguration": {
                 "Type": "OPENSEARCH_SERVERLESS",
                 "OpensearchServerlessConfiguration": {
-                    "CollectionArn": { "Fn::GetAtt" : ["SynapseHelpCollection", "Arn"] },
-                    "VectorIndexName": "vector-idx",
+                    "CollectionArn": {
+						"Fn::ImportValue": "${globalResourcesExportPrefix}-SynapseHelpCollectionArn"
+					},
+                    "VectorIndexName": "${stack}-${instance}-vector-idx",
                     "FieldMapping": {
                         "VectorField": "text_vector",
                         "TextField": "text_raw",

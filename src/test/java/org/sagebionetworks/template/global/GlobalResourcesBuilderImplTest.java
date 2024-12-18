@@ -10,9 +10,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.sagebionetworks.template.Constants.GLOBAL_CFSTACK_OUTPUT_KEY_SES_BOUNCE_TOPIC;
 import static org.sagebionetworks.template.Constants.GLOBAL_CFSTACK_OUTPUT_KEY_SES_COMPLAINT_TOPIC;
+import static org.sagebionetworks.template.Constants.IDENTITY_ARN;
 import static org.sagebionetworks.template.Constants.PROPERTY_KEY_STACK;
 import static org.sagebionetworks.template.Constants.SES_SYNAPSE_DOMAIN;
 import static org.sagebionetworks.template.Constants.STACK;
+import static org.sagebionetworks.template.Constants.VPC_EXPORT_PREFIX;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -38,6 +40,8 @@ import org.sagebionetworks.template.TemplateUtils;
 import org.sagebionetworks.template.config.Configuration;
 
 import com.amazonaws.services.cloudformation.model.Tag;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
+import com.amazonaws.services.securitytoken.model.GetCallerIdentityResult;
 
 @ExtendWith(MockitoExtension.class)
 public class GlobalResourcesBuilderImplTest {
@@ -55,6 +59,8 @@ public class GlobalResourcesBuilderImplTest {
     StackTagsProvider mockStackTagsProvider;
     @Mock
     SesClientImpl mockSesClient;
+    @Mock
+    AWSSecurityTokenService mockStsClient;
 
     List<Tag> expectedTags;
 
@@ -74,7 +80,7 @@ public class GlobalResourcesBuilderImplTest {
         Tag t = new Tag().withKey("aKey").withValue("aValue");
         expectedTags.add(t);
 
-        builder = new GlobalResourcesBuilderImpl(mockCloudFormationClient, velocityEngine, mockConfig, mockLoggerFactory, mockStackTagsProvider, mockSesClient);
+        builder = new GlobalResourcesBuilderImpl(mockCloudFormationClient, velocityEngine, mockConfig, mockLoggerFactory, mockStackTagsProvider, mockSesClient, mockStsClient);
 
     }
 
@@ -87,8 +93,11 @@ public class GlobalResourcesBuilderImplTest {
     @Test
     public void testCreateContext() {
         when(mockConfig.getProperty(PROPERTY_KEY_STACK)).thenReturn("dev");
+        when(mockStsClient.getCallerIdentity(any())).thenReturn(new GetCallerIdentityResult().withArn("currentIdentityArn"));
         VelocityContext context = builder.createContext();
         assertEquals("dev", context.get(STACK));
+        assertEquals("currentIdentityArn", context.get(IDENTITY_ARN));
+        assertEquals("us-east-1-synapse-dev-vpc-2", context.get(VPC_EXPORT_PREFIX));
     }
 
     @Test
@@ -108,7 +117,8 @@ public class GlobalResourcesBuilderImplTest {
     public void testBuildGlobalResourcesDev() throws InterruptedException {
         when(mockConfig.getProperty(PROPERTY_KEY_STACK)).thenReturn("dev");
         when(mockStackTagsProvider.getStackTags()).thenReturn(expectedTags);
-
+        when(mockStsClient.getCallerIdentity(any())).thenReturn(new GetCallerIdentityResult().withArn("currentIdentityArn"));
+        
         builder.buildGlobalResources(); // call under test
 
         verify(mockCloudFormationClient).createOrUpdateStack(requestCaptor.capture());
@@ -121,6 +131,8 @@ public class GlobalResourcesBuilderImplTest {
         String expectedJson = new JSONObject(TemplateUtils.loadContentFromFile("global/dev-global-resources.json")).toString();
         
         JSONObject templateJSON = new JSONObject(req.getTemplateBody());
+        
+        System.out.println(templateJSON.toString(2));
         
         assertEquals(expectedJson, templateJSON.toString());
 
@@ -135,7 +147,8 @@ public class GlobalResourcesBuilderImplTest {
         when(mockCloudFormationClient.getOutput("synapse-prod-global-resources", GLOBAL_CFSTACK_OUTPUT_KEY_SES_COMPLAINT_TOPIC)).thenReturn("complaintTopicArn");
         when(mockCloudFormationClient.getOutput("synapse-prod-global-resources", GLOBAL_CFSTACK_OUTPUT_KEY_SES_BOUNCE_TOPIC)).thenReturn("bounceTopicArn");
         when(mockStackTagsProvider.getStackTags()).thenReturn(expectedTags);
-
+        when(mockStsClient.getCallerIdentity(any())).thenReturn(new GetCallerIdentityResult().withArn("currentIdentityArn"));
+        
         builder.buildGlobalResources(); // call under test
 
         verify(mockCloudFormationClient).createOrUpdateStack(requestCaptor.capture());
